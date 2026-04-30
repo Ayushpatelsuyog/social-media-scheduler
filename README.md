@@ -17,13 +17,13 @@ AI-Powered Monthly Content Planning Tool for Social Media.
 
 - PHP 7.4+ with curl extension
 - [Ollama](https://ollama.ai/) running locally
-- A supported Ollama model (default: `gemma3:latest`)
+- A supported Ollama model (default: `gemma4:latest`)
 
 ## Setup
 
 1. Clone this repository
 2. Install and start Ollama: `ollama serve`
-3. Pull the model: `ollama pull gemma3:latest`
+3. Pull the model: `ollama pull gemma4:latest`
 4. Configure your company details in `config.php`
 5. Start a PHP development server:
    ```bash
