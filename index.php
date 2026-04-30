@@ -824,7 +824,7 @@ Return ONLY valid JSON:
 
             } catch (error) {
                 console.error(error);
-                statusText.textContent = `Error: ${error.message}. Ensure Ollama is running with gemma3:latest model.`;
+                statusText.textContent = `Error: ${error.message}. Ensure Ollama is running with gemma4:latest model.`;
                 statusBox.classList.add('bg-red-50', 'border-red-600');
                 setTimeout(() => {
                     statusBox.classList.remove('bg-red-50', 'border-red-600');

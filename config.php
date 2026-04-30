@@ -3,7 +3,7 @@
 
 // Ollama API Configuration
 define('OLLAMA_API_URL', 'http://localhost:11434/api');
-define('OLLAMA_MODEL', 'gemma3:latest');
+define('OLLAMA_MODEL', 'gemma4:latest');
 
 // Company Configuration
 define('COMPANY_NAME', 'SEPL Cables');
