@@ -22,6 +22,14 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .prompt-box { position: relative; }
+        .prompt-box .copy-btn { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.2s; }
+        .prompt-box:hover .copy-btn { opacity: 1; }
+        .copy-btn.copied { background-color: #10b981 !important; color: white !important; }
+        .prompt-tabs .prompt-tab { cursor: pointer; transition: all 0.2s; }
+        .prompt-tabs .prompt-tab.active { background-color: #7c3aed; color: white; }
+        .prompt-tabs .prompt-tab:not(.active) { background-color: #f3f4f6; color: #374151; }
+        .prompt-tabs .prompt-tab:not(.active):hover { background-color: #e5e7eb; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-8">
@@ -277,8 +285,9 @@
                     ${hasContent ? `
                         <div class="text-xs text-blue-600 font-medium truncate">${content.topic}</div>
                         <div class="text-xs text-gray-500 truncate">${content.platform}</div>
-                        <div class="mt-1 flex gap-1">
+                        <div class="mt-1 flex gap-1 items-center">
                             ${content.status === 'scheduled' ? '<span class="w-2 h-2 bg-green-500 rounded-full"></span>' : '<span class="w-2 h-2 bg-orange-500 rounded-full"></span>'}
+                            ${content.imagePrompt ? '<span class="text-xs text-purple-500 ml-1" title="Image prompt available"><i class="fas fa-paint-brush"></i></span>' : ''}
                         </div>
                     ` : '<div class="text-xs text-gray-400">No content</div>'}
                 `;
@@ -697,35 +706,75 @@ Return ONLY JSON:
                         // Check if it's a carousel post
                         const isCarousel = contentType.toLowerCase().includes('carousel');
                         
-                        const captionResult = await callOllama(
-                            `Write a social media caption for: ${topic}
+                        // Platform-specific image dimensions
+                        const platformDimensions = {
+                            'Instagram': { single: '1080x1080px (square)', story: '1080x1920px (9:16)', reel: '1080x1920px (9:16)', carousel: '1080x1080px (square per slide)' },
+                            'Facebook': { single: '1200x630px (landscape)', story: '1080x1920px (9:16)', video: '1280x720px (16:9)', carousel: '1080x1080px (square per slide)' },
+                            'Twitter': { single: '1600x900px (16:9)', video: '1280x720px (16:9)', poll: '1200x675px' },
+                            'LinkedIn': { single: '1200x627px (landscape)', carousel: '1080x1080px (square per slide)', video: '1920x1080px (16:9)' }
+                        };
+                        const dims = platformDimensions[platform] || platformDimensions['Instagram'];
+                        const imageSize = contentType.toLowerCase().includes('carousel') ? (dims.carousel || '1080x1080px') :
+                                          contentType.toLowerCase().includes('story') ? (dims.story || '1080x1920px') :
+                                          contentType.toLowerCase().includes('reel') ? (dims.reel || '1080x1920px') :
+                                          contentType.toLowerCase().includes('video') ? (dims.video || '1280x720px') :
+                                          (dims.single || '1080x1080px');
 
-Company: ${COMPANY_NAME}
+                        const captionResult = await callOllama(
+                            `You are a world-class graphic designer with 15+ years of experience creating social media content for Fortune 500 companies. You specialize in creating visually stunning, brand-consistent designs.
+
+Create a COMPLETE social media post package for:
+
+Topic: ${topic}
+Company: ${COMPANY_NAME} (${COMPANY_WEBSITE})
 Industry: ${COMPANY_INDUSTRY}
+Products/Services: ${COMPANY_KEY_PRODUCTS}
 Target Audience: ${COMPANY_TARGET_AUDIENCE}
 Brand Tone: ${COMPANY_TONE}
+Brand Values: ${COMPANY_VALUES}
 
 Platform: ${platform}
-Content type: ${contentType}
-Length: 100-150 characters
+Content Type: ${contentType}
+Image Dimensions: ${imageSize}
 
 ${isCarousel ? `IMPORTANT: This is a CAROUSEL POST. Generate 5-7 slide ideas/points for the carousel that showcase our products/services: ${COMPANY_KEY_PRODUCTS}` : ''}
 
-Also generate 5 relevant hashtags that align with our brand values: ${COMPANY_VALUES}
+Generate ALL of the following:
 
-Return ONLY JSON:
+1. CAPTION: A compelling, ${COMPANY_TONE} caption (100-150 characters) optimized for ${platform}
+2. HASHTAGS: 5 strategic hashtags aligned with brand values
+3. IMAGE PROMPT (DALL-E/ChatGPT): A detailed, professional prompt to generate the complete post image. Include:
+   - Exact visual composition and layout
+   - Color palette (specific hex codes matching brand identity)
+   - Typography style and text placement
+   - Background design (gradients, patterns, textures)
+   - Product/subject placement and styling
+   - Lighting, mood, and atmosphere
+   - Brand logo placement suggestion
+   - Image dimensions: ${imageSize}
+   - Photo-realistic or illustration style as appropriate
+   - All text overlays that should appear on the image
+4. MIDJOURNEY PROMPT: A Midjourney-optimized version with parameters (--ar, --v, --style, --q)
+${isCarousel ? `5. CAROUSEL SLIDES: 5-7 slide descriptions with individual image prompts for each slide` : ''}
+
+Return ONLY valid JSON:
 {
-  "caption": "Your caption here...",
-  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"]${isCarousel ? `,
+  "caption": "Your compelling caption...",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
+  "imagePrompt": {
+    "dalle": "Detailed DALL-E/ChatGPT image generation prompt with complete visual description including layout, colors, typography, elements, dimensions ${imageSize}...",
+    "midjourney": "Midjourney prompt with --ar 1:1 --v 6 --style raw --q 2 parameters...",
+    "designNotes": "Brief design rationale: color psychology, layout principles, brand alignment notes"
+  }${isCarousel ? `,
   "carouselSlides": [
-    "Slide 1: Title/idea for first slide",
-    "Slide 2: Title/idea for second slide",
-    "Slide 3: Title/idea for third slide",
-    "Slide 4: Title/idea for fourth slide",
-    "Slide 5: Title/idea for fifth slide"
+    {
+      "title": "Slide 1 title",
+      "description": "What this slide covers",
+      "slideImagePrompt": "Complete image prompt for this specific slide..."
+    }
   ]` : ''}
 }`,
-                            `You are a social media copywriter for ${COMPANY_NAME}. Write engaging, ${COMPANY_TONE} captions that resonate with ${COMPANY_TARGET_AUDIENCE}.`
+                            `You are an elite graphic designer and social media strategist for ${COMPANY_NAME} with 15+ years of experience at top agencies. You create designs that are visually stunning, on-brand, and drive engagement. Your image prompts are detailed enough to produce print-ready, professional social media posts when used with DALL-E, Midjourney, or ChatGPT image generation. Always include specific colors, typography, layout, dimensions, and visual elements.`
                         );
                         
                         let cleaned = captionResult.replace(/```json|```/g, "").trim();
@@ -738,6 +787,7 @@ Return ONLY JSON:
                             contentType: contentType,
                             caption: parsed.caption || 'No caption generated',
                             hashtags: parsed.hashtags || [],
+                            imagePrompt: parsed.imagePrompt || null,
                             ...(parsed.carouselSlides && { carouselSlides: parsed.carouselSlides }),
                             postTime: "10:00",
                             status: "pending"
@@ -757,6 +807,7 @@ Return ONLY JSON:
                             contentType: contentType,
                             caption: 'Error generating caption',
                             hashtags: [],
+                            imagePrompt: null,
                             postTime: "10:00",
                             status: "pending"
                         };
@@ -892,25 +943,89 @@ Return ONLY JSON:
                         <label class="block text-sm font-semibold text-blue-700 mb-2">Carousel Slides (${content.carouselSlides.length} slides)</label>
                         <div class="space-y-2">
                             ${content.carouselSlides.map((slide, idx) => {
-                                // Handle different slide formats
                                 let slideContent = '';
+                                let slidePrompt = '';
                                 if (typeof slide === 'string') {
                                     slideContent = slide;
                                 } else if (typeof slide === 'object') {
-                                    // Extract text from various object formats
-                                    if (slide.caption) slideContent = slide.caption;
+                                    if (slide.title) slideContent = slide.title;
+                                    else if (slide.caption) slideContent = slide.caption;
                                     else if (slide.description) slideContent = slide.description;
                                     else if (slide.content) slideContent = slide.content;
-                                    else if (slide.title) slideContent = slide.title;
                                     else slideContent = JSON.stringify(slide, null, 2);
+                                    if (slide.slideImagePrompt) slidePrompt = slide.slideImagePrompt;
+                                    if (slide.description && slide.title) slideContent = slide.title + ': ' + slide.description;
                                 }
                                 return `
                                 <div class="bg-white p-3 rounded-lg border border-blue-100">
                                     <span class="text-xs font-bold text-blue-600">Slide ${idx + 1}</span>
                                     <p class="text-sm text-gray-700 mt-1">${slideContent}</p>
+                                    ${slidePrompt ? `
+                                    <div class="mt-2 prompt-box">
+                                        <p class="text-xs text-purple-600 font-semibold mb-1"><i class="fas fa-image mr-1"></i>Slide Image Prompt:</p>
+                                        <p class="text-xs text-gray-600 bg-purple-50 p-2 rounded border border-purple-100 pr-16">${slidePrompt}</p>
+                                        <button onclick="copyToClipboard(this, '${slidePrompt.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')" class="copy-btn px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-all">
+                                            <i class="fas fa-copy"></i> Copy
+                                        </button>
+                                    </div>
+                                    ` : ''}
                                 </div>
                             `}).join('')}
                         </div>
+                    </div>
+                    ` : ''}
+
+                    ${content.imagePrompt ? `
+                    <div class="bg-purple-50 p-4 rounded-xl border-2 border-purple-200">
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="block text-sm font-bold text-purple-800">
+                                <i class="fas fa-paint-brush mr-2"></i>AI Image Generation Prompts
+                            </label>
+                            <span class="text-xs text-purple-500 bg-purple-100 px-2 py-1 rounded-full">Ready to use with DALL-E, Midjourney, ChatGPT</span>
+                        </div>
+
+                        <div class="prompt-tabs flex gap-2 mb-3">
+                            <button class="prompt-tab active px-3 py-1.5 rounded-lg text-xs font-semibold" onclick="switchPromptTab(this, 'dalle-prompt-${dateKey.replace(/-/g, '')}')">
+                                <i class="fas fa-robot mr-1"></i>DALL-E / ChatGPT
+                            </button>
+                            <button class="prompt-tab px-3 py-1.5 rounded-lg text-xs font-semibold" onclick="switchPromptTab(this, 'mj-prompt-${dateKey.replace(/-/g, '')}')">
+                                <i class="fas fa-magic mr-1"></i>Midjourney
+                            </button>
+                            ${content.imagePrompt.designNotes ? `
+                            <button class="prompt-tab px-3 py-1.5 rounded-lg text-xs font-semibold" onclick="switchPromptTab(this, 'notes-prompt-${dateKey.replace(/-/g, '')}')">
+                                <i class="fas fa-lightbulb mr-1"></i>Design Notes
+                            </button>
+                            ` : ''}
+                        </div>
+
+                        <div id="dalle-prompt-${dateKey.replace(/-/g, '')}" class="prompt-content prompt-box">
+                            <div class="bg-white p-4 rounded-lg border border-purple-100 pr-20">
+                                <p class="text-xs font-semibold text-purple-700 mb-2">DALL-E / ChatGPT Image Prompt:</p>
+                                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${typeof content.imagePrompt === 'string' ? content.imagePrompt : (content.imagePrompt.dalle || 'No DALL-E prompt generated')}</p>
+                            </div>
+                            <button onclick="copyPromptToClipboard(this, '${dateKey}', 'dalle')" class="copy-btn px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow-sm">
+                                <i class="fas fa-copy mr-1"></i>Copy Prompt
+                            </button>
+                        </div>
+
+                        <div id="mj-prompt-${dateKey.replace(/-/g, '')}" class="prompt-content prompt-box hidden">
+                            <div class="bg-white p-4 rounded-lg border border-purple-100 pr-20">
+                                <p class="text-xs font-semibold text-purple-700 mb-2">Midjourney Prompt:</p>
+                                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">${content.imagePrompt.midjourney || 'No Midjourney prompt generated'}</p>
+                            </div>
+                            <button onclick="copyPromptToClipboard(this, '${dateKey}', 'midjourney')" class="copy-btn px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow-sm">
+                                <i class="fas fa-copy mr-1"></i>Copy Prompt
+                            </button>
+                        </div>
+
+                        ${content.imagePrompt.designNotes ? `
+                        <div id="notes-prompt-${dateKey.replace(/-/g, '')}" class="prompt-content prompt-box hidden">
+                            <div class="bg-white p-4 rounded-lg border border-purple-100">
+                                <p class="text-xs font-semibold text-purple-700 mb-2">Design Rationale:</p>
+                                <p class="text-sm text-gray-700 leading-relaxed">${content.imagePrompt.designNotes}</p>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                     ` : ''}
                     
@@ -949,18 +1064,60 @@ Return ONLY JSON:
             document.body.style.overflow = 'hidden';
         }
 
+        function switchPromptTab(btn, targetId) {
+            const parent = btn.closest('.bg-purple-50');
+            parent.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            parent.querySelectorAll('.prompt-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(targetId).classList.remove('hidden');
+        }
+
+        function copyToClipboard(btn, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                }, 2000);
+            });
+        }
+
+        function copyPromptToClipboard(btn, dateKey, type) {
+            const content = monthlyPlan[dateKey];
+            let text = '';
+            if (content && content.imagePrompt) {
+                if (typeof content.imagePrompt === 'string') {
+                    text = content.imagePrompt;
+                } else {
+                    text = content.imagePrompt[type] || content.imagePrompt.dalle || '';
+                }
+            }
+            navigator.clipboard.writeText(text).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = '<i class="fas fa-check mr-1"></i>Copied!';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<i class="fas fa-copy mr-1"></i>Copy Prompt';
+                }, 2000);
+            });
+        }
+
         function closeModal() {
             document.getElementById('editorialModal').classList.add('hidden');
             document.body.style.overflow = 'auto';
         }
 
         function saveEditorialChanges(dateKey) {
+            const existingData = monthlyPlan[dateKey] || {};
             monthlyPlan[dateKey] = {
                 topic: document.getElementById('editTopic').value,
                 platform: document.getElementById('editPlatform').value,
                 contentType: document.getElementById('editContentType').value,
                 caption: document.getElementById('editCaption').value,
                 hashtags: document.getElementById('editHashtags').value.split(',').map(h => h.trim()).filter(h => h),
+                imagePrompt: existingData.imagePrompt || null,
+                ...(existingData.carouselSlides && { carouselSlides: existingData.carouselSlides }),
                 postTime: document.getElementById('editPostTime').value,
                 status: document.getElementById('editStatus').value
             };
